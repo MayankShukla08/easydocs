@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileText, Home, Moon, Settings, Sun } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 
 const navLinks = [
@@ -42,13 +43,16 @@ export function Navbar() {
       className="sticky top-0 z-40 w-full border-b border-border/40 bg-surface/80 backdrop-blur-md"
     >
       <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-4 sm:px-6 lg:px-8">
-        <Link href="/" className="flex items-center gap-2.5 transition-opacity hover:opacity-80">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-foreground text-xs font-bold text-background">
-            E
-          </div>
-          <span className="text-sm font-semibold tracking-tight text-foreground">
-            EasyDocs
-          </span>
+        <Link href="/" className="flex items-center transition-opacity hover:opacity-80">
+          <Image
+            src="/EasyDocs.png"
+            alt="EasyDocs"
+            width={0}
+            height={0}
+            sizes="(max-width: 768px) 108px, 136px"
+            className="w-[108px] sm:w-[136px] h-auto max-h-12 object-contain"
+            priority
+          />
         </Link>
 
         <nav className="hidden items-center md:flex">
