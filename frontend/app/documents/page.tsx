@@ -5,9 +5,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { FileText, Loader2, MessageSquare, RefreshCw, ChevronRight, Clock } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
-
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:5000";
-const API_BASE = `${BACKEND_URL}/api/v1`;
+import { API_BASE } from "@/lib/api";
 
 type DocumentItem = {
   doc_id: string;

@@ -30,6 +30,7 @@ ENV/
 env.bak/
 venv.bak/
 .venv/
+.env.local
 
 # IDE and Editor
 .vscode/

@@ -6,9 +6,8 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { SummaryCard } from "@/components/SummaryCard";
 import { UploadBox } from "@/components/UploadBox";
+import { API_BASE } from "@/lib/api";
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://127.0.0.1:5000";
-const API_BASE = `${BACKEND_URL}/api/v1`;
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ATTEMPTS = 20;
 
