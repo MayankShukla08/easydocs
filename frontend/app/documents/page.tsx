@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { FileText, Loader2, MessageSquare, RefreshCw, ChevronRight, Clock } from "lucide-react";
+import { FileText, Loader2, MessageSquare, RefreshCw, ChevronRight, Clock, AlertTriangle } from "lucide-react";
 import { Navbar } from "@/components/Navbar";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, parseApiError, formatNetworkError } from "@/lib/api";
 
 type DocumentItem = {
   doc_id: string;
   file_name: string;
   status: string;
+  error?: string | null;
   summary?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -39,12 +40,12 @@ export default function DocumentsPage() {
     try {
       const response = await fetch(`${API_BASE}/docs`);
       if (!response.ok) {
-        throw new Error("Failed to load documents.");
+        throw new Error(await parseApiError(response, "Failed to load documents"));
       }
       const payload = (await response.json()) as DocumentItem[];
       setDocuments(payload);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to load documents.");
+      setError(formatNetworkError(err, "Failed to load documents."));
     } finally {
       setIsLoading(false);
     }
@@ -143,12 +144,18 @@ export default function DocumentsPage() {
                     
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-3">
-                        <Link 
-                           href={`/chat/${encodeURIComponent(doc.doc_id)}?name=${encodeURIComponent(doc.file_name)}`}
-                           className="truncate text-base font-medium text-foreground hover:text-brand-600 transition-colors"
-                        >
-                           {doc.file_name}
-                        </Link>
+                        {doc.status === "completed" ? (
+                          <Link 
+                             href={`/chat/${encodeURIComponent(doc.doc_id)}?name=${encodeURIComponent(doc.file_name)}`}
+                             className="truncate text-base font-medium text-foreground hover:text-brand-600 transition-colors"
+                          >
+                             {doc.file_name}
+                          </Link>
+                        ) : (
+                          <span className="truncate text-base font-medium text-foreground">
+                            {doc.file_name}
+                          </span>
+                        )}
                         {doc.status !== "completed" && (
                           <span className={`shrink-0 rounded-full py-0.5 px-2 text-[10px] font-medium uppercase tracking-wider ${
                             doc.status === "failed" ? "bg-red-500/10 text-red-500" : "bg-amber-500/10 text-amber-500"
@@ -162,11 +169,15 @@ export default function DocumentsPage() {
                            <Clock className="h-3 w-3" />
                            {formatDate(doc.created_at)}
                         </span>
-                        {doc.summary && (
+                        {doc.status === "failed" && doc.error ? (
+                          <span className="truncate max-w-[200px] sm:max-w-xs md:max-w-md inline-block border-l border-red-500/30 pl-4 text-red-400">
+                            {doc.error}
+                          </span>
+                        ) : doc.summary ? (
                           <span className="truncate max-w-[200px] sm:max-w-xs md:max-w-md hidden sm:inline-block border-l border-border/50 pl-4">
                             {doc.summary}
                           </span>
-                        )}
+                        ) : null}
                       </div>
                     </div>
                   </div>

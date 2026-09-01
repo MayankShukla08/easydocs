@@ -8,5 +8,8 @@ requests
 numpy
 faiss-cpu
 PyPDF2
+pypdf
 python-docx
 python-multipart
+pillow
+pytesseract

@@ -7,7 +7,7 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { ChatDrawer, Message } from "@/components/ChatDrawer";
 import { Navbar } from "@/components/Navbar";
 import { SummaryCard } from "@/components/SummaryCard";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, parseApiError, formatNetworkError } from "@/lib/api";
 
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ATTEMPTS = 20;
@@ -22,6 +22,7 @@ type UploadResponse = {
 
 type JobStatusResponse = {
   status: string;
+  error?: string | null;
 };
 
 type DocumentResponse = {
@@ -30,6 +31,7 @@ type DocumentResponse = {
   summary_detailed?: string | null;
   key_points?: string[] | null;
   status?: string;
+  error?: string | null;
   precomputed_qa?: Array<{
     question?: string;
     answer?: string;
@@ -65,16 +67,6 @@ const nextMessage = (role: "user" | "assistant", text: string): Message => ({
   text,
 });
 
-async function readErrorDetail(response: Response): Promise<string> {
-  try {
-    const data = await response.json();
-    if (typeof data?.detail === "string") return data.detail;
-  } catch {
-    // Ignore parsing errors and fall back to status text.
-  }
-  return response.statusText || "Request failed";
-}
-
 export default function ChatPage() {
   const router = useRouter();
   const params = useParams<{ docId: string }>();
@@ -97,11 +89,12 @@ export default function ChatPage() {
       try {
         const response = await fetch(`${API_BASE}/docs/${docId}`);
         if (!response.ok) {
-          throw new Error(await readErrorDetail(response));
+          throw new Error(await parseApiError(response, "Failed to load document"));
         }
         const document = (await response.json()) as DocumentResponse;
         if (document.status && document.status !== "completed") {
-          throw new Error(`Document not ready (status=${document.status}).`);
+          const errDetail = document.error || `Document not ready (status=${document.status}).`;
+          throw new Error(errDetail);
         }
         const keyPointsText = toBulletedText(document.key_points ?? []);
         const computedSummary =
@@ -122,7 +115,7 @@ export default function ChatPage() {
         dispatchMessages({ type: "reset" });
         setIsDrawerOpen(sanitizedPrecomputed.length > 0);
       } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Failed to load document.";
+        const message = formatNetworkError(error, "Failed to load document.");
         setErrorMessage(message);
       } finally {
         setIsLoadingDoc(false);
@@ -141,7 +134,7 @@ export default function ChatPage() {
       body: JSON.stringify({ message: input, top_k: 5 }),
     });
     if (!response.ok) {
-      throw new Error(await readErrorDetail(response));
+      throw new Error(await parseApiError(response, "Chat request failed"));
     }
     const payload = (await response.json()) as ChatResponse;
     dispatchMessages({
@@ -155,7 +148,7 @@ export default function ChatPage() {
     try {
       await requestChatAnswer(input);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Chat request failed";
+      const message = formatNetworkError(error, "Chat request failed");
       dispatchMessages({
         type: "add",
         payload: nextMessage("assistant", `I couldn't answer that just now: ${message}`),
@@ -173,7 +166,7 @@ export default function ChatPage() {
     try {
       await requestChatAnswer(qa.question);
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Chat request failed";
+      const message = formatNetworkError(error, "Chat request failed");
       dispatchMessages({
         type: "add",
         payload: nextMessage("assistant", `I couldn't answer that just now: ${message}`),
@@ -190,7 +183,7 @@ export default function ChatPage() {
       body: formData,
     });
     if (!uploadResponse.ok) {
-      throw new Error(await readErrorDetail(uploadResponse));
+      throw new Error(await parseApiError(uploadResponse, "Upload failed"));
     }
     const upload = (await uploadResponse.json()) as UploadResponse;
     let currentStatus = upload.status;
@@ -201,10 +194,13 @@ export default function ChatPage() {
       await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
       const statusResponse = await fetch(`${API_BASE}/jobs/${upload.job_id}/status`);
       if (!statusResponse.ok) {
-        throw new Error(await readErrorDetail(statusResponse));
+        throw new Error(await parseApiError(statusResponse, "Failed to check job status"));
       }
       const statusPayload = (await statusResponse.json()) as JobStatusResponse;
       currentStatus = statusPayload.status;
+      if (statusPayload.status === "failed") {
+        throw new Error(statusPayload.error || "Document processing failed.");
+      }
     }
 
     if (currentStatus !== "completed") {

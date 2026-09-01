@@ -14,6 +14,7 @@ class DocumentInDB(BaseModel):
     sha256: str
     mime_type: str
     status: str = "uploaded"
+    error: Optional[str] = None
     summary: Optional[str] = None
     summary_detailed: Optional[str] = None
     key_points: list[str] = Field(default_factory=list)

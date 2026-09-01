@@ -4,8 +4,9 @@ import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 # Allow running this file directly from the `backend` folder.
 if __package__ in (None, ""):
@@ -38,6 +39,15 @@ def create_app() -> FastAPI:
     ensure_data_dirs()
 
     app = FastAPI(title=settings.app_name, lifespan=_lifespan)
+
+    @app.exception_handler(Exception)
+    async def global_exception_handler(request: Request, exc: Exception):
+        logging.getLogger(__name__).exception("Unhandled exception on %s %s: %s", request.method, request.url.path, exc)
+        return JSONResponse(
+            status_code=500,
+            content={"detail": f"Internal server error: {str(exc)[:200]}"},
+        )
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,

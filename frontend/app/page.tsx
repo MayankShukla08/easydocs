@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Navbar } from "@/components/Navbar";
 import { SummaryCard } from "@/components/SummaryCard";
 import { UploadBox } from "@/components/UploadBox";
-import { API_BASE } from "@/lib/api";
+import { API_BASE, parseApiError, formatNetworkError } from "@/lib/api";
 
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ATTEMPTS = 20;
@@ -19,17 +19,8 @@ type UploadResponse = {
 
 type JobStatusResponse = {
   status: string;
+  error?: string | null;
 };
-
-async function readErrorDetail(response: Response): Promise<string> {
-  try {
-    const data = await response.json();
-    if (typeof data?.detail === "string") return data.detail;
-  } catch {
-    // Ignore parsing errors and fall back to status text.
-  }
-  return response.statusText || "Request failed";
-}
 
 export default function Home() {
   const router = useRouter();
@@ -47,7 +38,7 @@ export default function Home() {
       body: formData,
     });
     if (!uploadResponse.ok) {
-      throw new Error(await readErrorDetail(uploadResponse));
+      throw new Error(await parseApiError(uploadResponse, "Upload failed"));
     }
     const upload = (await uploadResponse.json()) as UploadResponse;
 
@@ -58,10 +49,13 @@ export default function Home() {
       await new Promise((resolve) => window.setTimeout(resolve, POLL_INTERVAL_MS));
       const statusResponse = await fetch(`${API_BASE}/jobs/${upload.job_id}/status`);
       if (!statusResponse.ok) {
-        throw new Error(await readErrorDetail(statusResponse));
+        throw new Error(await parseApiError(statusResponse, "Failed to check job status"));
       }
       const statusPayload = (await statusResponse.json()) as JobStatusResponse;
       currentStatus = statusPayload.status;
+      if (statusPayload.status === "failed") {
+        throw new Error(statusPayload.error || "Document processing failed.");
+      }
     }
 
     if (currentStatus !== "completed") {
@@ -77,12 +71,18 @@ export default function Home() {
     setErrorMessage("");
     void handleFileUpload(file)
       .catch((error: unknown) => {
-        const message = error instanceof Error ? error.message : "Upload failed";
+        const message = formatNetworkError(error, "Upload failed");
         setErrorMessage(message);
       })
       .finally(() => {
         setIsUploading(false);
       });
+  };
+
+  const handleReset = () => {
+    setSelectedFile(null);
+    setErrorMessage("");
+    setSummary("");
   };
 
   return (
@@ -119,7 +119,13 @@ export default function Home() {
         </motion.div>
 
         <section className="w-full flex-1 relative flex flex-col items-center">
-          <UploadBox onFileSelect={handleFileSelect} selectedFile={selectedFile} isUploading={isUploading} />
+          <UploadBox
+            onFileSelect={handleFileSelect}
+            selectedFile={selectedFile}
+            isUploading={isUploading}
+            hasError={!!errorMessage}
+            onReset={handleReset}
+          />
 
           <AnimatePresence>
             {(selectedFile || isUploading || errorMessage) && (

@@ -89,40 +89,55 @@ async def upload_document(
     if existing:
         existing_doc_id = existing["doc_id"]
         status = existing.get("status", "uploaded")
-        await db[cols.jobs].insert_one(
+        if status == "completed":
+            await db[cols.jobs].insert_one(
+                {
+                    "job_id": job_id,
+                    "doc_id": existing_doc_id,
+                    "status": status,
+                    "created_at": _now(),
+                    "updated_at": _now(),
+                }
+            )
+            logger.info("Duplicate upload reused completed doc_id", extra={"doc_id": existing_doc_id, "job_id": job_id})
+            return {"job_id": job_id, "doc_id": existing_doc_id, "status": status}
+        
+        # If previous attempt failed or is incomplete, re-process with latest pipeline
+        doc_id = existing_doc_id
+
+    if not existing:
+        # Insert document + job
+        await db[cols.documents].insert_one(
             {
-                "job_id": job_id,
-                "doc_id": existing_doc_id,
-                "status": status,
+                "doc_id": doc_id,
+                "user_id": None,
+                "file_name": safe_name,
+                "file_path": str(dest),
+                "sha256": sha256,
+                "mime_type": mime,
+                "status": "uploaded",
+                "summary": None,
                 "created_at": _now(),
                 "updated_at": _now(),
             }
         )
-        logger.info("Duplicate upload reused doc_id", extra={"doc_id": existing_doc_id, "job_id": job_id})
-        return {"job_id": job_id, "doc_id": existing_doc_id, "status": status}
-
-    # Insert document + job
-    await db[cols.documents].insert_one(
-        {
-            "doc_id": doc_id,
-            "user_id": None,
-            "file_name": safe_name,
-            "file_path": str(dest),
-            "sha256": sha256,
-            "mime_type": mime,
-            "status": "uploaded",
-            "summary": None,
-            "created_at": _now(),
-            "updated_at": _now(),
-        }
-    )
+    
     await db[cols.jobs].insert_one(
         {"job_id": job_id, "doc_id": doc_id, "status": "uploaded", "created_at": _now(), "updated_at": _now()}
     )
 
     # Synchronous MVP processing (inline)
-    await process_document(db, doc_id=doc_id, job_id=job_id)
+    try:
+        await process_document(db, doc_id=doc_id, job_id=job_id)
+    except Exception as exc:
+        logger.error("Processing failed for doc_id=%s, job_id=%s: %s", doc_id, job_id, exc)
+        job = await db[cols.jobs].find_one({"job_id": job_id})
+        err_msg = (job or {}).get("error") or str(exc)
+        raise HTTPException(
+            status_code=422,
+            detail=f"Document processing failed: {err_msg}",
+        )
 
     job = await db[cols.jobs].find_one({"job_id": job_id})
-    return {"job_id": job_id, "doc_id": doc_id, "status": (job or {}).get("status", "uploaded")}
+    return {"job_id": job_id, "doc_id": doc_id, "status": (job or {}).get("status", "completed")}
 
