@@ -10,8 +10,8 @@
  */
 
 const BACKEND_URL =
-  process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ??
-  "http://127.0.0.1:5000";
+  process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, "") ||
+  "https://easydocs-m2zh.onrender.com";
 
 /**
  * The base URL for all API v1 calls.

@@ -41,10 +41,20 @@ def create_app() -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
+        allow_origin_regex=r"^https:\/\/.*\.vercel\.app$|^http:\/\/localhost(:\d+)?$|^http:\/\/127\.0\.0\.1(:\d+)?$",
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.get("/")
+    @app.head("/")
+    async def root():
+        return {"status": "ok", "app": settings.app_name, "version": "1.0.0"}
+
+    @app.get("/health")
+    async def health():
+        return {"status": "healthy"}
 
     app.include_router(v1_router)
     return app
